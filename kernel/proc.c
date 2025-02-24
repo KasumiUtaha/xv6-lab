@@ -282,6 +282,7 @@ fork(void)
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
+  np->trace_mask = p->trace_mask;
 
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
@@ -663,6 +664,16 @@ either_copyin(void *dst, int user_src, uint64 src, uint64 len)
     memmove(dst, (char*)src, len);
     return 0;
   }
+}
+
+uint64 procnum(void) {
+  uint64 num = 0;
+  for(struct proc *p = proc; p < &proc[NPROC];p++) {
+    if(p -> state != UNUSED) {
+      num++;
+    }
+  }
+  return num;
 }
 
 // Print a process listing to console.  For debugging.
