@@ -68,6 +68,17 @@ int
 argaddr(int n, uint64 *ip)
 {
   *ip = argraw(n);
+  struct proc *p = myproc();
+
+  if(walkaddr(p->pagetable, *ip) == 0) {
+    if(PGROUNDUP(p->trapframe->sp) - 1 < *ip && *ip < p->sz) {
+      if(pgfmalloc(p->pagetable, *ip) != 0) {
+        return -1;
+      }
+    } else {
+      return -1;
+    }
+  }
   return 0;
 }
 
