@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -133,6 +134,7 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+  memset(&p->vma, 0, sizeof(p->vma));
 
   return p;
 }
@@ -298,6 +300,13 @@ fork(void)
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
+  for(int i=0;i<NVMA;i++) {
+    if(p->vma[i].used) {
+      memmove(&np->vma[i], &p->vma[i], sizeof(p->vma[i]));
+      filedup(p->vma[i].vfile);
+    }
+  }
+
   pid = np->pid;
 
   np->state = RUNNABLE;
@@ -353,10 +362,23 @@ exit(int status)
     }
   }
 
+  for(int i = 0;i < NVMA; i++) {
+    if(p->vma[i].used) {
+      if(p->vma[i].flags == MAP_SHARED && (p->vma[i].prot & PROT_WRITE)) {
+        filewrite(p->vma[i].vfile, p->vma[i].addr, p->vma[i].length);
+      }
+      fileclose(p->vma[i].vfile);
+      uvmunmap(p->pagetable, p->vma[i].addr, p->vma[i].length / PGSIZE, 1);
+      p->vma[i].used = 0;
+    }
+  }
+
   begin_op();
   iput(p->cwd);
   end_op();
   p->cwd = 0;
+
+  
 
   // we might re-parent a child to init. we can't be precise about
   // waking up init, since we can't acquire its lock once we've
